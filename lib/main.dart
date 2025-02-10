@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'DB_helper.dart';
+import 'to_do_model.dart';
+
 
 void main() {
+  // Initialize FFI
+
   runApp(TodoApp());
 }
 
@@ -20,59 +26,186 @@ class TodoListScreen extends StatefulWidget {
 }
 
 class _TodoListScreenState extends State<TodoListScreen> {
-  final List<String> _prince = [];
-  final TextEditingController _controller = TextEditingController();
+   List<Todo> _prince = [];
+  @override
+  void initState() {
+    super.initState();
+    _loadTasks();
+  }
+   Future<void> _toggleCheckbox(int index) async {
+     final task = _prince[index];
+     task.isChecked = !task.isChecked;
+     await DB_helper.instance.updateTask(task);
+     _loadTasks();
+   }
 
-//Aman Singh
+   // Fetch tasks from database
+  Future<void> _loadTasks() async {
+    final tasks = await DB_helper.instance.fetchTasks();
+    setState(() {
+      _prince = tasks;
+    });
+  }
 
-  void _addTask() {
-    if (_controller.text.isNotEmpty) {
-      setState(() {
-        _prince.add(_controller.text);
-        _controller.clear();
-      });
+Future<void> _delbutton(int index)async{
+final task = _prince[index];
+if (task.id != null){
+  await DB_helper.instance.deleteTask(task.id!);
+   _loadTasks();
+}
+}
+void _deleteDialog(int index){
+    showDialog(context: context, builder: (context){
+      return AlertDialog(
+          title: Text('Are you sure You want to Delete?'),
+          
+          actions: [
+
+
+            TextButton(onPressed: (){
+      Navigator.of(context).pop();
+                },
+
+                child: Text('No')),
+
+          TextButton(
+          onPressed: () {
+        _delbutton(index);
+        Navigator.of(context).pop();// Close the dialog
+      },
+      child: Text("Yes"),
+      ),
+      ]
+      );
     }
+    );
+}
+
+  void _showInputDialog() {
+    TextEditingController controller = TextEditingController();
+
+    showGeneralDialog(
+       context: context,
+
+      transitionDuration: const Duration(milliseconds: 300), // Animation duration
+
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Dialog(
+
+          insetPadding: EdgeInsets.zero,
+          alignment: Alignment.bottomCenter,
+          child: Container(
+
+
+            height:MediaQuery.of(context).size.height * 0.7 ,// 70% of screen width
+            padding: EdgeInsets.all(50),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Padding(
+              padding: EdgeInsets.only(top: 10,bottom: 10),
+              child: Column(
+                children:  [
+                  Text("Add New Task"),
+                  Padding(padding: EdgeInsets.only(top: 10,bottom: 10),
+                    child:
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(hintText: "Enter task..."),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async{
+
+
+                      if (controller.text.isNotEmpty) {
+
+                        final newTask = Todo(title: controller.text, isChecked: false);
+                        await DB_helper.instance.insertTask(newTask);  // ✅ Insert into DB
+                        _loadTasks();  // ✅ Reload from DB
+                      }
+                      Navigator.of(context).pop(); // Close dialog
+                      Fluttertoast.showToast(
+                        msg: "Task Added Successfully!",
+                        toastLength: Toast.LENGTH_SHORT,
+                        gravity: ToastGravity.BOTTOM, // Change to CENTER
+                        backgroundColor: Colors.blue,
+                        textColor: Colors.white,
+                      );
+                    },
+                    child: const Text("Save"),
+                  ),
+
+                ],
+
+              ),
+            ),
+          ),
+        );
+
+      },
+
+
+    );
+
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('-Do List')),
-      body: Column(
+      appBar: AppBar(
+          title: Text('To-Do List'),
+      actions:[ IconButton(
+        icon: Icon(Icons.add),
+        onPressed: _showInputDialog,
+      )],
+    ),
+      body:Container(
+        margin: EdgeInsets.all(10),
+        child:  Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: InputDecoration(labelText: 'Enter a task'),
-                  ),
-                ),
-
-                IconButton(
-                  icon: Icon(Icons.add),
-                  onPressed: _addTask,
-                ),
-              ],
-            ),
-          ),
           Expanded(
               child: ListView.builder(
-                itemCount: _prince.length,
-                itemBuilder: (context,index){
-                  return ListTile(
+                  itemCount: _prince.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                       leading: Checkbox(
 
-                    title: Text(_prince[index]),
-                  );
-                }
+                        activeColor: Colors.green,
+                        value: _prince[index].isChecked,
+
+                        onChanged: (value) => _toggleCheckbox(index) ,
+                      ),
+
+                        title:
+
+                        Text(_prince[index].title,
+                        style:TextStyle(
+                    decoration: _prince[index].isChecked
+                    ? TextDecoration.lineThrough : TextDecoration.none,
+                        ),
+                        ),
+                        trailing:IconButton(onPressed: () =>_deleteDialog(index),
+
+                            icon: Icon(Icons.delete)),
+
+
+
+                        shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                    ),
+
+
+                    );
+                  }
               )
 
           )
         ],
       ),
+    )
     );
   }
-}
-// Getting Started
+  }
